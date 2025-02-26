@@ -35,13 +35,19 @@ func main(){
   }
   defer objs.Close()
 
-  kp,err := link.Kprobe("sys_open", objs.HandleOpen, nil)
+  kpr,err := link.Tracepoint("syscalls","sys_exit_openat",objs.HandleExitOpenatTpbtf,nil)
+  if err != nil {
+    log.Fatal("Error opening kretprobe: %v",err)
+  }
+  defer kpr.Close()
 
+  kp,err := link.Tracepoint("syscalls","sys_enter_openat", objs.HandleOpenatTcbtf, nil)
   if err != nil {
     log.Fatal("Error opening kprobe : %v",err)
   }
   defer kp.Close()
-
+  
+  
   rd,err := ringbuf.NewReader(objs.Events)
 
   if err != nil {
@@ -78,8 +84,9 @@ func main(){
       continue
     }
 
-    log.Printf("PID: %d | UID: %d | Comm: %s | Filename: %s | Flags: %d | Timestamp: %d\n",
-      events.Pid,events.Uid,unix.ByteSliceToString(events.Comm[:]),unix.ByteSliceToString(events.Filename[:]),events.Flags,events.TimestampNs)
+    log.Printf("PID: %d | UID: %d | Comm: %s | Filename: %s | Flags: %d | Timestamp: %d | Timestamp exit: %d | ret: %d | Latency: %d\n",
+      events.Pid,events.Uid,unix.ByteSliceToString(events.Comm[:]),unix.ByteSliceToString(events.Filename[:]),events.Flags,events.TimestampNs,
+      events.TimestampNsExit,events.Ret,events.Latency)
   }
 } 
 

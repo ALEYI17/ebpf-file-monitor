@@ -13,14 +13,17 @@ import (
 )
 
 type ebpfFileEvent struct {
-	Pid         uint32
-	Uid         uint32
-	Comm        [150]uint8
-	Filename    [256]uint8
-	_           [2]byte
-	Flags       int32
-	_           [4]byte
-	TimestampNs uint64
+	Pid             uint32
+	Uid             uint32
+	Comm            [150]uint8
+	Filename        [256]uint8
+	_               [2]byte
+	Flags           int32
+	_               [4]byte
+	TimestampNs     uint64
+	Ret             int64
+	Latency         uint64
+	TimestampNsExit uint64
 }
 
 // loadEbpf returns the embedded CollectionSpec for ebpf.
@@ -65,14 +68,16 @@ type ebpfSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type ebpfProgramSpecs struct {
-	HandleOpen *ebpf.ProgramSpec `ebpf:"handle_open"`
+	HandleExitOpenatTpbtf *ebpf.ProgramSpec `ebpf:"handle_exit_openat_tpbtf"`
+	HandleOpenatTcbtf     *ebpf.ProgramSpec `ebpf:"handle_openat_tcbtf"`
 }
 
 // ebpfMapSpecs contains maps before they are loaded into the kernel.
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type ebpfMapSpecs struct {
-	Events *ebpf.MapSpec `ebpf:"events"`
+	Events      *ebpf.MapSpec `ebpf:"events"`
+	StartEvents *ebpf.MapSpec `ebpf:"start_events"`
 }
 
 // ebpfVariableSpecs contains global variables before they are loaded into the kernel.
@@ -102,12 +107,14 @@ func (o *ebpfObjects) Close() error {
 //
 // It can be passed to loadEbpfObjects or ebpf.CollectionSpec.LoadAndAssign.
 type ebpfMaps struct {
-	Events *ebpf.Map `ebpf:"events"`
+	Events      *ebpf.Map `ebpf:"events"`
+	StartEvents *ebpf.Map `ebpf:"start_events"`
 }
 
 func (m *ebpfMaps) Close() error {
 	return _EbpfClose(
 		m.Events,
+		m.StartEvents,
 	)
 }
 
@@ -122,12 +129,14 @@ type ebpfVariables struct {
 //
 // It can be passed to loadEbpfObjects or ebpf.CollectionSpec.LoadAndAssign.
 type ebpfPrograms struct {
-	HandleOpen *ebpf.Program `ebpf:"handle_open"`
+	HandleExitOpenatTpbtf *ebpf.Program `ebpf:"handle_exit_openat_tpbtf"`
+	HandleOpenatTcbtf     *ebpf.Program `ebpf:"handle_openat_tcbtf"`
 }
 
 func (p *ebpfPrograms) Close() error {
 	return _EbpfClose(
-		p.HandleOpen,
+		p.HandleExitOpenatTpbtf,
+		p.HandleOpenatTcbtf,
 	)
 }
 
