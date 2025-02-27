@@ -26,6 +26,21 @@ type ebpfFileEvent struct {
 	TimestampNsExit uint64
 }
 
+type ebpfRwEvent struct {
+	SyscallType     uint32
+	Pid             uint32
+	Uid             uint32
+	Comm            [150]uint8
+	_               [6]byte
+	TimestampNs     uint64
+	Ret             int64
+	Latency         uint64
+	TimestampNsExit uint64
+	Fd              uint32
+	_               [4]byte
+	Count           uint64
+}
+
 // loadEbpf returns the embedded CollectionSpec for ebpf.
 func loadEbpf() (*ebpf.CollectionSpec, error) {
 	reader := bytes.NewReader(_EbpfBytes)
@@ -68,7 +83,11 @@ type ebpfSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type ebpfProgramSpecs struct {
+	HandleEnterRead       *ebpf.ProgramSpec `ebpf:"handle_enter_read"`
+	HandleEnterWrite      *ebpf.ProgramSpec `ebpf:"handle_enter_write"`
 	HandleExitOpenatTpbtf *ebpf.ProgramSpec `ebpf:"handle_exit_openat_tpbtf"`
+	HandleExitRead        *ebpf.ProgramSpec `ebpf:"handle_exit_read"`
+	HandleExitWrite       *ebpf.ProgramSpec `ebpf:"handle_exit_write"`
 	HandleOpenatTcbtf     *ebpf.ProgramSpec `ebpf:"handle_openat_tcbtf"`
 }
 
@@ -76,15 +95,18 @@ type ebpfProgramSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type ebpfMapSpecs struct {
-	Events      *ebpf.MapSpec `ebpf:"events"`
-	StartEvents *ebpf.MapSpec `ebpf:"start_events"`
+	Events        *ebpf.MapSpec `ebpf:"events"`
+	RbRw          *ebpf.MapSpec `ebpf:"rb_rw"`
+	StartEvents   *ebpf.MapSpec `ebpf:"start_events"`
+	StartEventsRw *ebpf.MapSpec `ebpf:"start_events_rw"`
 }
 
 // ebpfVariableSpecs contains global variables before they are loaded into the kernel.
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type ebpfVariableSpecs struct {
-	Unused *ebpf.VariableSpec `ebpf:"unused"`
+	Unused  *ebpf.VariableSpec `ebpf:"unused"`
+	Unused2 *ebpf.VariableSpec `ebpf:"unused2"`
 }
 
 // ebpfObjects contains all objects after they have been loaded into the kernel.
@@ -107,14 +129,18 @@ func (o *ebpfObjects) Close() error {
 //
 // It can be passed to loadEbpfObjects or ebpf.CollectionSpec.LoadAndAssign.
 type ebpfMaps struct {
-	Events      *ebpf.Map `ebpf:"events"`
-	StartEvents *ebpf.Map `ebpf:"start_events"`
+	Events        *ebpf.Map `ebpf:"events"`
+	RbRw          *ebpf.Map `ebpf:"rb_rw"`
+	StartEvents   *ebpf.Map `ebpf:"start_events"`
+	StartEventsRw *ebpf.Map `ebpf:"start_events_rw"`
 }
 
 func (m *ebpfMaps) Close() error {
 	return _EbpfClose(
 		m.Events,
+		m.RbRw,
 		m.StartEvents,
+		m.StartEventsRw,
 	)
 }
 
@@ -122,20 +148,29 @@ func (m *ebpfMaps) Close() error {
 //
 // It can be passed to loadEbpfObjects or ebpf.CollectionSpec.LoadAndAssign.
 type ebpfVariables struct {
-	Unused *ebpf.Variable `ebpf:"unused"`
+	Unused  *ebpf.Variable `ebpf:"unused"`
+	Unused2 *ebpf.Variable `ebpf:"unused2"`
 }
 
 // ebpfPrograms contains all programs after they have been loaded into the kernel.
 //
 // It can be passed to loadEbpfObjects or ebpf.CollectionSpec.LoadAndAssign.
 type ebpfPrograms struct {
+	HandleEnterRead       *ebpf.Program `ebpf:"handle_enter_read"`
+	HandleEnterWrite      *ebpf.Program `ebpf:"handle_enter_write"`
 	HandleExitOpenatTpbtf *ebpf.Program `ebpf:"handle_exit_openat_tpbtf"`
+	HandleExitRead        *ebpf.Program `ebpf:"handle_exit_read"`
+	HandleExitWrite       *ebpf.Program `ebpf:"handle_exit_write"`
 	HandleOpenatTcbtf     *ebpf.Program `ebpf:"handle_openat_tcbtf"`
 }
 
 func (p *ebpfPrograms) Close() error {
 	return _EbpfClose(
+		p.HandleEnterRead,
+		p.HandleEnterWrite,
 		p.HandleExitOpenatTpbtf,
+		p.HandleExitRead,
+		p.HandleExitWrite,
 		p.HandleOpenatTcbtf,
 	)
 }
