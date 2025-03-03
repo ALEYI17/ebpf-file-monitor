@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/log"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
 	"github.com/cilium/ebpf/rlimit"
@@ -19,8 +21,8 @@ import (
 
 
 func main(){
-  log.SetPrefix("file_ebpf: ")
-  log.SetFlags(log.Ltime)
+
+  logger:= setupLogger()
 
   stopper := make(chan os.Signal, 1)
 	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
@@ -100,7 +102,7 @@ func main(){
     }
 	}()
   
-  log.Println("Waiting for events..")
+  logger.Info("Waiting for events..")
   
   var events ebpfFileEvent
   var rw_events ebpfRwEvent
@@ -109,60 +111,104 @@ func main(){
 
     if err != nil {
       if errors.Is(err, ringbuf.ErrClosed){
-        log.Println("Received signal, exiting...")
+        logger.Printf("Received signal, exiting...")
         return
       }
 
-      log.Printf("Reading from reader: %s", err)
+      logger.Printf("Reading from reader: %s", err)
       continue
     }
 
     if err := binary.Read(bytes.NewBuffer(record.RawSample), binary.LittleEndian, &events); err!=nil{
-      log.Printf("parsing ringbuf event: %s", err)
+      logger.Printf("parsing ringbuf event: %s", err)
       continue
     }
     
-    log.Printf(" Openat syscall log :PID: %d | UID: %d | Comm: %s | Filename: %s | Flags: %d | Timestamp: %d | Timestamp exit: %d | ret: %d | Latency: %d\n",
-    events.Pid,events.Uid,unix.ByteSliceToString(events.Comm[:]),unix.ByteSliceToString(events.Filename[:]),events.Flags,events.TimestampNs,
-    events.TimestampNsExit,events.Ret,events.Latency)
-    
+    logOpenat(logger, events)
+
     record2,err := rd2.Read()
 
     if err != nil {
       if errors.Is(err, ringbuf.ErrClosed){
-        log.Println("Received signal, exiting...")
+        logger.Infof("Received signal, exiting...")
         return
       }
 
-      log.Printf("Reading from reader: %s", err)
+      logger.Printf("Reading from reader: %s", err)
       continue
     }
 
     if err := binary.Read(bytes.NewBuffer(record2.RawSample), binary.LittleEndian, &rw_events); err!=nil{
-      log.Printf("parsing ringbuf event: %s", err)
+      logger.Infof("parsing ringbuf event: %s", err)
       continue
     }
     
     if rw_events.SyscallType == 0{
-      log.Printf("read syscall log :PID: %d | UID: %d | Comm: %s | fd: %d | count: %d | Timestamp: %d | Timestamp exit: %d | ret: %d | Latency: %d\n",
-    rw_events.Pid,rw_events.Uid,unix.ByteSliceToString(rw_events.Comm[:]),rw_events.Fd,rw_events.Count,rw_events.TimestampNs,
-    rw_events.TimestampNsExit,rw_events.Ret,rw_events.Latency)
+      logReadWrite(logger, "read", rw_events)
     }else{
-    
-      log.Printf("write syscall log :PID: %d | UID: %d | Comm: %s | fd: %d | count: %d | Timestamp: %d | Timestamp exit: %d | ret: %d | Latency: %d\n",
-    rw_events.Pid,rw_events.Uid,unix.ByteSliceToString(rw_events.Comm[:]),rw_events.Fd,rw_events.Count,rw_events.TimestampNs,
-    rw_events.TimestampNsExit,rw_events.Ret,rw_events.Latency)
-    
+      logReadWrite(logger, "write", rw_events)
     }
     
   }
 } 
 
 
+// setupLogger initializes the logger with custom styles
+func setupLogger() *log.Logger {
+	logger := log.New(os.Stdout) // Output logs to the console
 
+	// Define styles
+	styles := log.DefaultStyles()
+  
+  // Set uniform styling for all keys and values
+	keyColor := lipgloss.Color("196")   // Bright Yellow
+	valueColor := lipgloss.Color("250")  // Bright Blue
 
+	keys := []string{
+		"syscall", "pid", "uid", "command", "filename", "flags", "timestamp",
+		"return", "latency_ns", "fd", "count",
+	}
 
+	for _, key := range keys {
+		styles.Keys[key] = lipgloss.NewStyle().Foreground(keyColor).Bold(true)
+		styles.Values[key] = lipgloss.NewStyle().Foreground(valueColor).Bold(true)
+	}
 
+  // Apply styles to the logger
+	logger.SetStyles(styles)
+	logger.SetLevel(log.DebugLevel)       // Show debug, info, warn, and error logs
+	logger.SetTimeFormat(time.RFC3339)    // ISO format timestamp
+	logger.SetReportTimestamp(true)       // Include timestamps
+	return logger
+}
+
+func logOpenat(logger *log.Logger, event ebpfFileEvent) {
+	logger.Info("Openat syscall",
+		"syscall", "openat",
+		"pid", event.Pid,
+		"uid", event.Uid,
+		"command", unix.ByteSliceToString(event.Comm[:]),
+		"filename", unix.ByteSliceToString(event.Filename[:]),
+		"flags", event.Flags,
+		"timestamp", event.TimestampNs,
+		"return", event.Ret,
+		"latency_ns", event.Latency,
+	)
+}
+
+func logReadWrite(logger *log.Logger, syscallType string, event ebpfRwEvent) {
+	logger.Info("Read/Write syscall",
+		"syscall", syscallType,
+		"pid", event.Pid,
+		"uid", event.Uid,
+		"command", unix.ByteSliceToString(event.Comm[:]),
+		"fd", event.Fd,
+		"count", event.Count,
+		"timestamp", event.TimestampNs,
+		"return", event.Ret,
+		"latency_ns", event.Latency,
+	)
+}
 
 
 
