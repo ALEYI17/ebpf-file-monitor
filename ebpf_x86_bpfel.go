@@ -15,11 +15,18 @@ import (
 type ebpfFileEvent struct {
 	Pid             uint32
 	Uid             uint32
+	Gid             uint32
+	_               [4]byte
+	CgroupId        uint64
+	Ppid            uint32
+	CgroupName      [150]uint8
+	_               [2]byte
+	UserPid         uint32
+	UserPpid        uint32
 	Comm            [150]uint8
 	Filename        [256]uint8
 	_               [2]byte
 	Flags           int32
-	_               [4]byte
 	TimestampNs     uint64
 	Ret             int64
 	Latency         uint64
@@ -99,6 +106,7 @@ type ebpfMapSpecs struct {
 	RbRw          *ebpf.MapSpec `ebpf:"rb_rw"`
 	StartEvents   *ebpf.MapSpec `ebpf:"start_events"`
 	StartEventsRw *ebpf.MapSpec `ebpf:"start_events_rw"`
+	TmpEventMap   *ebpf.MapSpec `ebpf:"tmp_event_map"`
 }
 
 // ebpfVariableSpecs contains global variables before they are loaded into the kernel.
@@ -133,6 +141,7 @@ type ebpfMaps struct {
 	RbRw          *ebpf.Map `ebpf:"rb_rw"`
 	StartEvents   *ebpf.Map `ebpf:"start_events"`
 	StartEventsRw *ebpf.Map `ebpf:"start_events_rw"`
+	TmpEventMap   *ebpf.Map `ebpf:"tmp_event_map"`
 }
 
 func (m *ebpfMaps) Close() error {
@@ -141,6 +150,7 @@ func (m *ebpfMaps) Close() error {
 		m.RbRw,
 		m.StartEvents,
 		m.StartEventsRw,
+		m.TmpEventMap,
 	)
 }
 

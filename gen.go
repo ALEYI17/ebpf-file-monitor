@@ -186,16 +186,22 @@ func logOpenat(logger *log.Logger, event ebpfFileEvent) {
 	logger.Info("Openat syscall",
 		"syscall", "openat",
 		"pid", event.Pid,
+		"ppid", event.Ppid,
 		"uid", event.Uid,
+		"gid", event.Gid,
+		"user_pid", event.UserPid,
+		"user_ppid", event.UserPpid,
+		"cgroup_id", event.CgroupId,
+		"cgroup_name", unix.ByteSliceToString(event.CgroupName[:]),
 		"command", unix.ByteSliceToString(event.Comm[:]),
 		"filename", unix.ByteSliceToString(event.Filename[:]),
 		"flags", event.Flags,
 		"timestamp", event.TimestampNs,
 		"return", event.Ret,
 		"latency_ns", event.Latency,
+		"timestamp_exit", event.TimestampNsExit,
 	)
 }
-
 func logReadWrite(logger *log.Logger, syscallType string, event ebpfRwEvent) {
 	logger.Info("Read/Write syscall",
 		"syscall", syscallType,
